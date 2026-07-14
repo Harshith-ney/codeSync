@@ -259,7 +259,7 @@ export function setupWebSocket(io: Server) {
       }
 
       schedulePersist(roomId);
-      socket.to(roomId).emit('typing_update', {
+      io.to(roomId).except(socket.id).emit('typing_update', {
         userId,
         username: (socket as any).username as string,
         typing: true,
