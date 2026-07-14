@@ -265,7 +265,7 @@ export function setupWebSocket(io: Server) {
       } catch { /* Redis unavailable, local broadcast already sent */ }
     });
 
-    socket.on('cursor', async (cursorState: { position: number; selection?: { start: number; end: number } }) => {
+    socket.on('cursor', async (cursorState: { position: number; selection?: { start: number; end: number }; typing?: boolean }) => {
       const roomId = (socket as any).roomId as string;
       const username = (socket as any).username as string;
       if (!roomId) return;

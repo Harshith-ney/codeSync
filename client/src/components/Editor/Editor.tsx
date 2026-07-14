@@ -52,6 +52,7 @@ export default function Editor({ roomId, language, readOnly = false }: Props) {
   const initialYjsSyncRef = useRef(false);
   const sendYjsUpdateRef = useRef<(update: number[]) => void>(() => {});
   const typingTimerRef = useRef<number | null>(null);
+  const localTypingRef = useRef(false);
   const userId = getUserId() || 'anonymous';
   const [revision, setRevision] = useState(0);
 
@@ -112,7 +113,7 @@ export default function Editor({ roomId, language, readOnly = false }: Props) {
       const model = editor.getModel();
       if (!model) return;
       const offset = model.getOffsetAt(e.position);
-      sendCursor(offset);
+      sendCursor(offset, undefined, localTypingRef.current);
     });
 
     editor.onDidChangeCursorSelection((e) => {
@@ -121,19 +122,24 @@ export default function Editor({ roomId, language, readOnly = false }: Props) {
       const position = model.getOffsetAt(e.selection.getPosition());
       const start = model.getOffsetAt(e.selection.getStartPosition());
       const end = model.getOffsetAt(e.selection.getEndPosition());
-      sendCursor(position, start === end ? undefined : { start, end });
+      sendCursor(position, start === end ? undefined : { start, end }, localTypingRef.current);
     });
 
     editor.onDidChangeModelContent(() => {
       const model = editor.getModel();
       if (!model || readOnly) return;
+      localTypingRef.current = true;
       const offset = model.getOffsetAt(editor.getPosition() || model.getFullModelRange().getEndPosition());
-      sendCursor(offset, undefined, true);
+      const selection = editor.getSelection();
+      const start = selection ? model.getOffsetAt(selection.getStartPosition()) : offset;
+      const end = selection ? model.getOffsetAt(selection.getEndPosition()) : offset;
+      sendCursor(offset, start === end ? undefined : { start, end }, true);
 
       if (typingTimerRef.current) window.clearTimeout(typingTimerRef.current);
       typingTimerRef.current = window.setTimeout(() => {
         const latestModel = editor.getModel();
         if (!latestModel) return;
+        localTypingRef.current = false;
         const latestOffset = latestModel.getOffsetAt(editor.getPosition() || latestModel.getFullModelRange().getEndPosition());
         sendCursor(latestOffset, undefined, false);
       }, 1200);

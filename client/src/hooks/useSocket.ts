@@ -6,7 +6,7 @@ interface UseSocketOptions {
   roomId: string;
   onRoomState: (state: { content: string; revision: number; role?: string }) => void;
   onCursors?: (cursors: Array<{ userId: string; username: string; position: number; selection?: { start: number; end: number }; typing?: boolean }>) => void;
-  onCursorUpdate: (cursor: { userId: string; username: string; position: number; selection?: { start: number; end: number } }) => void;
+  onCursorUpdate: (cursor: { userId: string; username: string; position: number; selection?: { start: number; end: number }; typing?: boolean }) => void;
   onUserJoined: (user: { userId: string; username: string }) => void;
   onUserLeft: (user: { userId: string }) => void;
   onConnectionError?: (message: string) => void;
