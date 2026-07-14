@@ -4,6 +4,36 @@ CodeSync is a real-time collaborative code editor built as a local-first portfol
 
 ![CodeSync demo](assets/codesync-demo.gif)
 
+## Project Pitch
+
+CodeSync is a full-stack collaborative coding workspace where multiple users can join the same room, edit code together in real time, see each other's cursors, share room notes, and execute code from the browser. The project is designed to show practical distributed-systems thinking in a product people already understand: Google Docs-style collaboration, but for code.
+
+The most important engineering choice is the move from simple operation broadcasting to Yjs CRDT updates. That means concurrent edits can merge safely even when two users type in the same document at the same time. The server still controls access, persists snapshots, records replayable history entries, and fans out updates through Redis for multi-instance deployment.
+
+## Technical Highlights
+
+- Built a collaborative Monaco editor with Yjs CRDT document sync over Socket.IO.
+- Added remote cursor and selection presence with per-user colors and Redis-backed TTL cleanup.
+- Implemented room permissions with public/invite-only access and server-enforced editor/viewer roles.
+- Added Judge0-backed code execution for multiple languages with stdin and clear execution states.
+- Persisted documents, room metadata, notes, and version-history operations in PostgreSQL.
+- Hardened auth with `httpOnly` access/refresh cookies and automatic refresh on expired sessions.
+- Prepared production deployment with Nginx, HTTPS via Certbot, PM2 cluster mode, and k6 load testing.
+
+## Interview Talking Points
+
+- **CRDT vs OT:** The project uses Yjs CRDT updates so clients converge without needing a fragile custom transform pipeline for concurrent edits.
+- **Server authority:** Clients can render read-only mode, but the Socket.IO server also rejects edit updates from viewers.
+- **Persistence tradeoff:** Documents are kept in memory for low-latency collaboration and saved to PostgreSQL with a debounce to reduce write pressure.
+- **Scaling path:** Redis handles presence state and cross-process Yjs update fan-out for PM2 or multi-instance deployments.
+- **Security hardening:** Tokens are stored in `httpOnly` cookies instead of readable browser storage.
+
+## Resume Bullets
+
+- Built a real-time collaborative code editor using React, Monaco, Socket.IO, Yjs, Node.js, PostgreSQL, Redis, and Judge0.
+- Implemented CRDT-based concurrent editing, remote cursor presence, room permissions, version-history replay, and server-enforced read-only access.
+- Added production hardening with `httpOnly` cookie auth, deployment runbook, Nginx/Certbot config, PM2 cluster mode, and k6 load-test coverage.
+
 ## Features
 
 - Real-time collaborative editing with Yjs CRDT-based conflict handling
@@ -14,7 +44,7 @@ CodeSync is a real-time collaborative code editor built as a local-first portfol
 - Read-only viewer mode enforced by the server
 - Persisted operation history with revision replay
 - Per-room shared notes docs for ideas, TODOs, and collaboration context
-- JWT auth with access + refresh tokens
+- JWT auth with `httpOnly` access + refresh cookies
 - Redis-backed presence and optional pub/sub fan-out
 - Debounced PostgreSQL document persistence
 - In-editor code execution for JavaScript, TypeScript, Python, Java, C++, C, Go, and Rust with stdin support
@@ -174,4 +204,3 @@ The current portfolio-ready baseline includes:
 
 - execute the deployment runbook on the target EC2/domain
 - run and tune the k6 load test against the deployed instance
-- add a demo GIF to the README
