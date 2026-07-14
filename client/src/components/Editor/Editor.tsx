@@ -52,6 +52,7 @@ export default function Editor({ roomId, language, readOnly = false }: Props) {
   const initialYjsSyncRef = useRef(false);
   const sendYjsUpdateRef = useRef<(update: number[]) => void>(() => {});
   const typingTimerRef = useRef<number | null>(null);
+  const remoteTypingTimersRef = useRef<Record<string, number>>({});
   const localTypingRef = useRef(false);
   const userId = getUserId() || 'anonymous';
   const [revision, setRevision] = useState(0);
@@ -93,8 +94,34 @@ export default function Editor({ roomId, language, readOnly = false }: Props) {
     onCursorUpdate: (cursor) => {
       setCursors((prev) => {
         const filtered = prev.filter((c) => c.userId !== cursor.userId);
-        return [...filtered, cursor];
+        const existing = prev.find((c) => c.userId === cursor.userId);
+        return [...filtered, { ...cursor, typing: cursor.typing ?? existing?.typing }];
       });
+    },
+    onTypingUpdate: ({ userId: typingUserId, username, typing }) => {
+      setCursors((prev) => {
+        const existing = prev.find((c) => c.userId === typingUserId);
+        if (!existing) {
+          return [...prev, { userId: typingUserId, username, position: 0, typing }];
+        }
+        return prev.map((cursor) => (
+          cursor.userId === typingUserId
+            ? { ...cursor, username: username || cursor.username, typing }
+            : cursor
+        ));
+      });
+
+      if (remoteTypingTimersRef.current[typingUserId]) {
+        window.clearTimeout(remoteTypingTimersRef.current[typingUserId]);
+      }
+      if (typing) {
+        remoteTypingTimersRef.current[typingUserId] = window.setTimeout(() => {
+          setCursors((prev) => prev.map((cursor) => (
+            cursor.userId === typingUserId ? { ...cursor, typing: false } : cursor
+          )));
+          delete remoteTypingTimersRef.current[typingUserId];
+        }, 1500);
+      }
     },
     onUserJoined: () => {},
     onUserLeft: ({ userId: uid }) => {
@@ -181,6 +208,8 @@ export default function Editor({ roomId, language, readOnly = false }: Props) {
       bindingRef.current?.destroy();
       bindingRef.current = null;
       if (typingTimerRef.current) window.clearTimeout(typingTimerRef.current);
+      Object.values(remoteTypingTimersRef.current).forEach((timer) => window.clearTimeout(timer));
+      remoteTypingTimersRef.current = {};
     };
   }, []);
 

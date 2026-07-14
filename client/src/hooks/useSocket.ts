@@ -13,6 +13,7 @@ interface UseSocketOptions {
   onOperationError?: (message: string) => void;
   onYjsSync?: (update: number[]) => void;
   onYjsUpdate?: (update: number[]) => void;
+  onTypingUpdate?: (update: { userId: string; username: string; typing: boolean }) => void;
 }
 
 export function useSocket({
@@ -26,6 +27,7 @@ export function useSocket({
   onOperationError,
   onYjsSync,
   onYjsUpdate,
+  onTypingUpdate,
 }: UseSocketOptions) {
   const socketRef = useRef<Socket | null>(null);
   const handlersRef = useRef({
@@ -38,6 +40,7 @@ export function useSocket({
     onOperationError,
     onYjsSync,
     onYjsUpdate,
+    onTypingUpdate,
   });
 
   handlersRef.current = {
@@ -50,6 +53,7 @@ export function useSocket({
     onOperationError,
     onYjsSync,
     onYjsUpdate,
+    onTypingUpdate,
   };
 
   useEffect(() => {
@@ -69,6 +73,7 @@ export function useSocket({
     socket.on('room_state', (state) => handlersRef.current.onRoomState(state));
     socket.on('yjs_sync', (update: number[]) => handlersRef.current.onYjsSync?.(update));
     socket.on('yjs_update', (update: number[]) => handlersRef.current.onYjsUpdate?.(update));
+    socket.on('typing_update', (update) => handlersRef.current.onTypingUpdate?.(update));
     socket.on('cursors', (cursors) => handlersRef.current.onCursors?.(cursors));
     socket.on('cursor_update', (cursor) => handlersRef.current.onCursorUpdate(cursor));
     socket.on('user_joined', (user) => handlersRef.current.onUserJoined(user));

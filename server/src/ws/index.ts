@@ -259,6 +259,11 @@ export function setupWebSocket(io: Server) {
       }
 
       schedulePersist(roomId);
+      socket.to(roomId).emit('typing_update', {
+        userId,
+        username: (socket as any).username as string,
+        typing: true,
+      });
       socket.to(roomId).emit('yjs_update', toUpdatePayload(update));
       try {
         await redis.publish(`yjs-room:${roomId}`, JSON.stringify(toUpdatePayload(update)));
