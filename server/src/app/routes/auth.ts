@@ -15,11 +15,14 @@ function signRefresh(userId: string) {
 }
 
 const isProduction = process.env.NODE_ENV === 'production';
+const secureCookies = process.env.COOKIE_SECURE
+  ? process.env.COOKIE_SECURE === 'true'
+  : isProduction;
 
 const accessCookieOptions: CookieOptions = {
   httpOnly: true,
   sameSite: 'lax',
-  secure: isProduction,
+  secure: secureCookies,
   path: '/',
   maxAge: 15 * 60 * 1000,
 };
@@ -27,7 +30,7 @@ const accessCookieOptions: CookieOptions = {
 const refreshCookieOptions: CookieOptions = {
   httpOnly: true,
   sameSite: 'lax',
-  secure: isProduction,
+  secure: secureCookies,
   path: '/api/auth',
   maxAge: 7 * 24 * 60 * 60 * 1000,
 };

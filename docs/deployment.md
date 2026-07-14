@@ -36,9 +36,19 @@ DATABASE_URL=postgres://user:password@host:5432/codesync
 REDIS_URL=redis://localhost:6379
 JWT_SECRET=replace-with-a-long-random-production-secret
 JWT_REFRESH_SECRET=replace-with-a-different-long-random-production-secret
+COOKIE_SECURE=true
 JUDGE0_BASE_URL=https://ce.judge0.com
 JUDGE0_API_KEY=replace-with-your-judge0-api-key
 ```
+
+For a temporary IP-only HTTP deployment, use:
+
+```bash
+CLIENT_URL=http://54.196.134.253
+COOKIE_SECURE=false
+```
+
+Switch `COOKIE_SECURE` back to `true` when the app is behind HTTPS.
 
 Then restart:
 
