@@ -5,7 +5,7 @@ import * as Y from 'yjs';
 import { MonacoBinding } from 'y-monaco';
 import { useSocket } from '../../hooks/useSocket';
 import { api } from '../../lib/api';
-import { getUserId } from '../../lib/auth';
+import { getUserId, getUsername } from '../../lib/auth';
 import Presence from '../Presence/Presence';
 import Output from '../Output/Output';
 
@@ -55,6 +55,7 @@ export default function Editor({ roomId, language, readOnly = false }: Props) {
   const remoteTypingTimersRef = useRef<Record<string, number>>({});
   const localTypingRef = useRef(false);
   const userId = getUserId() || 'anonymous';
+  const username = getUsername() || 'You';
   const [revision, setRevision] = useState(0);
 
   const [cursors, setCursors] = useState<Array<{ userId: string; username: string; position: number; selection?: { start: number; end: number }; typing?: boolean }>>([]);
@@ -74,6 +75,17 @@ export default function Editor({ roomId, language, readOnly = false }: Props) {
       new Set([editor]),
     );
   }, []);
+
+  const upsertLocalCursor = useCallback((
+    position: number,
+    selection?: { start: number; end: number },
+    typing = localTypingRef.current,
+  ) => {
+    setCursors((prev) => {
+      const filtered = prev.filter((cursor) => cursor.userId !== userId);
+      return [...filtered, { userId, username, position, selection, typing }];
+    });
+  }, [userId, username]);
 
   const { sendCursor, sendYjsUpdate } = useSocket({
     roomId,
@@ -141,6 +153,7 @@ export default function Editor({ roomId, language, readOnly = false }: Props) {
       if (!model) return;
       const offset = model.getOffsetAt(e.position);
       sendCursor(offset, undefined, localTypingRef.current);
+      upsertLocalCursor(offset, undefined, localTypingRef.current);
     });
 
     editor.onDidChangeCursorSelection((e) => {
@@ -149,7 +162,9 @@ export default function Editor({ roomId, language, readOnly = false }: Props) {
       const position = model.getOffsetAt(e.selection.getPosition());
       const start = model.getOffsetAt(e.selection.getStartPosition());
       const end = model.getOffsetAt(e.selection.getEndPosition());
-      sendCursor(position, start === end ? undefined : { start, end }, localTypingRef.current);
+      const cursorSelection = start === end ? undefined : { start, end };
+      sendCursor(position, cursorSelection, localTypingRef.current);
+      upsertLocalCursor(position, cursorSelection, localTypingRef.current);
     });
 
     editor.onDidChangeModelContent(() => {
@@ -160,7 +175,9 @@ export default function Editor({ roomId, language, readOnly = false }: Props) {
       const selection = editor.getSelection();
       const start = selection ? model.getOffsetAt(selection.getStartPosition()) : offset;
       const end = selection ? model.getOffsetAt(selection.getEndPosition()) : offset;
-      sendCursor(offset, start === end ? undefined : { start, end }, true);
+      const cursorSelection = start === end ? undefined : { start, end };
+      sendCursor(offset, cursorSelection, true);
+      upsertLocalCursor(offset, cursorSelection, true);
 
       if (typingTimerRef.current) window.clearTimeout(typingTimerRef.current);
       typingTimerRef.current = window.setTimeout(() => {
@@ -169,6 +186,7 @@ export default function Editor({ roomId, language, readOnly = false }: Props) {
         localTypingRef.current = false;
         const latestOffset = latestModel.getOffsetAt(editor.getPosition() || latestModel.getFullModelRange().getEndPosition());
         sendCursor(latestOffset, undefined, false);
+        upsertLocalCursor(latestOffset, undefined, false);
       }, 1200);
     });
   }
@@ -250,7 +268,7 @@ export default function Editor({ roomId, language, readOnly = false }: Props) {
             // Use the model's change event instead of the onChange prop
             // to get the raw Monaco event with range offsets
           />
-          <Presence cursors={cursors.filter((c) => c.userId !== userId)} editorRef={editorRef} monaco={monaco} />
+          <Presence cursors={cursors} editorRef={editorRef} monaco={monaco} />
         </div>
         {output !== null && <Output title={output.title} output={output.body} onClose={() => setOutput(null)} />}
       </div>
