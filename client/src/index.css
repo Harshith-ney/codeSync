@@ -9,20 +9,9 @@ body {
 
 #root { height: 100vh; display: flex; flex-direction: column; }
 
-.remote-cursor-label {
-  display: inline-block;
-  margin-left: 2px;
-  padding: 1px 7px 1px 3px;
-  border-radius: 3px;
-  color: #fff;
-  font-size: 11px;
-  font-weight: 700;
-  line-height: 16px;
-  transform: translateY(-8px);
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.28);
-  pointer-events: none;
-  white-space: nowrap;
-  border-left: 2px solid #fff;
+.remote-cursor-position {
+  border-left-width: 2px;
+  border-left-style: solid;
 }
 
 .remote-selection {
@@ -35,6 +24,13 @@ body {
 .remote-cursor-color-3 { background: #ec4899; }
 .remote-cursor-color-4 { background: #14b8a6; }
 .remote-cursor-color-5 { background: #f59e0b; }
+
+.remote-cursor-border-0 { border-left-color: #f97316; }
+.remote-cursor-border-1 { border-left-color: #22c55e; }
+.remote-cursor-border-2 { border-left-color: #a78bfa; }
+.remote-cursor-border-3 { border-left-color: #ec4899; }
+.remote-cursor-border-4 { border-left-color: #14b8a6; }
+.remote-cursor-border-5 { border-left-color: #f59e0b; }
 
 .remote-selection-color-0 { background: rgba(249, 115, 22, 0.26); }
 .remote-selection-color-1 { background: rgba(34, 197, 94, 0.24); }
