@@ -2,9 +2,9 @@ import { useRef, useState, useCallback, useEffect } from 'react';
 import MonacoEditor, { useMonaco } from '@monaco-editor/react';
 import type * as Monaco from 'monaco-editor';
 import * as Y from 'yjs';
+import { MonacoBinding } from 'y-monaco';
 import { useSocket } from '../../hooks/useSocket';
 import { api } from '../../lib/api';
-import { LANGUAGE_TEMPLATES } from '../../lib/templates';
 import { getUserId } from '../../lib/auth';
 import Presence from '../Presence/Presence';
 import Output from '../Output/Output';
@@ -46,14 +46,13 @@ function loadEditorPreferences(): EditorPreferences {
 export default function Editor({ roomId, language, readOnly = false }: Props) {
   const monaco = useMonaco();
   const editorRef = useRef<Monaco.editor.IStandaloneCodeEditor | null>(null);
-  const changeSubscriptionRef = useRef<Monaco.IDisposable | null>(null);
   const ydocRef = useRef(new Y.Doc());
   const ytextRef = useRef<Y.Text>(ydocRef.current.getText('monaco'));
+  const bindingRef = useRef<MonacoBinding | null>(null);
+  const initialYjsSyncRef = useRef(false);
   const sendYjsUpdateRef = useRef<(update: number[]) => void>(() => {});
-  const pendingInitialStateRef = useRef<{ content: string; revision: number } | null>(null);
   const userId = getUserId() || 'anonymous';
   const [revision, setRevision] = useState(0);
-  const applyingYjsRef = useRef(false);
 
   const [cursors, setCursors] = useState<Array<{ userId: string; username: string; position: number; selection?: { start: number; end: number } }>>([]);
   const [output, setOutput] = useState<{ title: string; body: string } | null>(null);
@@ -61,40 +60,31 @@ export default function Editor({ roomId, language, readOnly = false }: Props) {
   const [operationError, setOperationError] = useState<string | null>(null);
   const [preferences, setPreferences] = useState<EditorPreferences>(() => loadEditorPreferences());
 
-  const syncModelFromYjs = useCallback(() => {
-    const model = editorRef.current?.getModel();
-    if (!model) return;
-    const value = ytextRef.current.toString();
-    if (model.getValue() === value) return;
-    applyingYjsRef.current = true;
-    model.setValue(value);
-    applyingYjsRef.current = false;
+  const bindMonacoToYjs = useCallback(() => {
+    const editor = editorRef.current;
+    const model = editor?.getModel();
+    if (!editor || !model || !initialYjsSyncRef.current || bindingRef.current) return;
+
+    bindingRef.current = new MonacoBinding(
+      ytextRef.current,
+      model,
+      new Set([editor]),
+    );
   }, []);
 
   const { sendCursor, sendYjsUpdate } = useSocket({
     roomId,
-    onRoomState: ({ content, revision: rev }) => {
-      const value = content ?? LANGUAGE_TEMPLATES[language] ?? '';
-      pendingInitialStateRef.current = { content: value, revision: rev };
-
-      const model = editorRef.current?.getModel();
-      if (!model) return;
-
-      applyingYjsRef.current = true;
-      if (model.getValue() !== value) {
-        model.setValue(value);
-      }
+    onRoomState: ({ revision: rev }) => {
       setRevision(rev);
-      applyingYjsRef.current = false;
       setConnectionError(null);
     },
     onYjsSync: (update) => {
       Y.applyUpdate(ydocRef.current, new Uint8Array(update), 'remote-sync');
-      syncModelFromYjs();
+      initialYjsSyncRef.current = true;
+      bindMonacoToYjs();
     },
     onYjsUpdate: (update) => {
       Y.applyUpdate(ydocRef.current, new Uint8Array(update), 'remote-update');
-      syncModelFromYjs();
       setRevision((rev) => rev + 1);
     },
     onCursorUpdate: (cursor) => {
@@ -114,18 +104,7 @@ export default function Editor({ roomId, language, readOnly = false }: Props) {
 
   function onMount(editor: Monaco.editor.IStandaloneCodeEditor) {
     editorRef.current = editor;
-
-    const pendingState = pendingInitialStateRef.current;
-    if (pendingState) {
-      const model = editor.getModel();
-      if (model && model.getValue() !== pendingState.content) {
-        applyingYjsRef.current = true;
-        model.setValue(pendingState.content);
-        applyingYjsRef.current = false;
-      }
-      setRevision(pendingState.revision);
-      setConnectionError(null);
-    }
+    bindMonacoToYjs();
 
     editor.onDidChangeCursorPosition((e) => {
       const model = editor.getModel();
@@ -146,7 +125,7 @@ export default function Editor({ roomId, language, readOnly = false }: Props) {
 
   useEffect(() => {
     const updateHandler = (update: Uint8Array, origin: unknown) => {
-      if (origin !== 'local-monaco') return;
+      if (origin === 'remote-sync' || origin === 'remote-update') return;
       sendYjsUpdateRef.current(Array.from(update));
       setRevision((rev) => rev + 1);
     };
@@ -157,15 +136,6 @@ export default function Editor({ roomId, language, readOnly = false }: Props) {
       ydocRef.current.off('update', updateHandler);
     };
   }, []);
-
-  useEffect(() => {
-    const observer = () => syncModelFromYjs();
-    ytextRef.current.observe(observer);
-
-    return () => {
-      ytextRef.current.unobserve(observer);
-    };
-  }, [syncModelFromYjs]);
 
   useEffect(() => {
     if (!operationError) return;
@@ -184,28 +154,11 @@ export default function Editor({ roomId, language, readOnly = false }: Props) {
   }, [preferences]);
 
   useEffect(() => {
-    changeSubscriptionRef.current?.dispose();
-    if (editorRef.current && !readOnly) {
-      changeSubscriptionRef.current = editorRef.current.onDidChangeModelContent((event) => {
-        if (applyingYjsRef.current) return;
-        const changes = [...event.changes].sort((a, b) => b.rangeOffset - a.rangeOffset);
-        ydocRef.current.transact(() => {
-          for (const change of changes) {
-            if (change.rangeLength > 0) {
-              ytextRef.current.delete(change.rangeOffset, change.rangeLength);
-            }
-            if (change.text.length > 0) {
-              ytextRef.current.insert(change.rangeOffset, change.text);
-            }
-          }
-        }, 'local-monaco');
-      });
-    }
-
     return () => {
-      changeSubscriptionRef.current?.dispose();
+      bindingRef.current?.destroy();
+      bindingRef.current = null;
     };
-  }, [readOnly]);
+  }, []);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
