@@ -1,10 +1,16 @@
+import { useEffect, useState } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import LoginPage from './pages/LoginPage';
 import RoomsPage from './pages/RoomsPage';
 import EditorPage from './pages/EditorPage';
+import { hasSession, subscribeToAuthChanges } from './lib/auth';
 
 function useAuth() {
-  return !!localStorage.getItem('accessToken');
+  const [isAuthenticated, setIsAuthenticated] = useState(hasSession());
+
+  useEffect(() => subscribeToAuthChanges(() => setIsAuthenticated(hasSession())), []);
+
+  return isAuthenticated;
 }
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {

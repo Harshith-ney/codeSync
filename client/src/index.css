@@ -8,3 +8,36 @@ body {
 }
 
 #root { height: 100vh; display: flex; flex-direction: column; }
+
+.remote-cursor-label {
+  display: inline-block;
+  margin-left: 2px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 16px;
+  transform: translateY(-9px);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.28);
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.remote-selection {
+  border-radius: 2px;
+}
+
+.remote-cursor-color-0 { background: #f97316; }
+.remote-cursor-color-1 { background: #22c55e; }
+.remote-cursor-color-2 { background: #a78bfa; }
+.remote-cursor-color-3 { background: #ec4899; }
+.remote-cursor-color-4 { background: #14b8a6; }
+.remote-cursor-color-5 { background: #f59e0b; }
+
+.remote-selection-color-0 { background: rgba(249, 115, 22, 0.26); }
+.remote-selection-color-1 { background: rgba(34, 197, 94, 0.24); }
+.remote-selection-color-2 { background: rgba(167, 139, 250, 0.26); }
+.remote-selection-color-3 { background: rgba(236, 72, 153, 0.24); }
+.remote-selection-color-4 { background: rgba(20, 184, 166, 0.24); }
+.remote-selection-color-5 { background: rgba(245, 158, 11, 0.24); }

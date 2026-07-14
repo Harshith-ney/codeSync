@@ -2,6 +2,7 @@ import Redis from 'ioredis';
 
 const redis = new Redis(process.env.REDIS_URL || 'redis://localhost:6379', {
   lazyConnect: true,
+  maxRetriesPerRequest: 0,
   retryStrategy: (times) => Math.min(times * 500, 5000),
 });
 redis.on('error', (err) => {

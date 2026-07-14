@@ -1,12 +1,16 @@
 import { useState, useEffect, FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
+import { clearSession } from '../lib/auth';
 
 interface Room {
   id: string;
   name: string;
   language: string;
   owner_name: string;
+  access_mode: 'public' | 'invite';
+  default_role: 'editor' | 'viewer';
+  current_user_role: 'owner' | 'editor' | 'viewer';
   created_at: string;
 }
 
@@ -15,21 +19,51 @@ export default function RoomsPage() {
   const [rooms, setRooms] = useState<Room[]>([]);
   const [newName, setNewName] = useState('');
   const [language, setLanguage] = useState('javascript');
+  const [accessMode, setAccessMode] = useState<'public' | 'invite'>('public');
+  const [defaultRole, setDefaultRole] = useState<'editor' | 'viewer'>('editor');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [creating, setCreating] = useState(false);
 
   useEffect(() => {
-    api.get<Room[]>('/rooms').then(setRooms).catch(console.error);
+    let cancelled = false;
+
+    api.get<Room[]>('/rooms')
+      .then((data) => {
+        if (cancelled) return;
+        setRooms(data);
+      })
+      .catch((err: Error) => {
+        if (cancelled) return;
+        setError(err.message || 'Failed to load rooms.');
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   async function createRoom(e: FormEvent) {
     e.preventDefault();
     if (!newName.trim()) return;
-    const room = await api.post<Room>('/rooms', { name: newName, language });
-    setNewName('');
-    navigate(`/room/${room.id}`);
+    setCreating(true);
+    setError('');
+    try {
+      const room = await api.post<Room>('/rooms', { name: newName, language, accessMode, defaultRole });
+      setNewName('');
+      navigate(`/room/${room.id}`);
+    } catch (err: any) {
+      setError(err.message || 'Failed to create room.');
+    } finally {
+      setCreating(false);
+    }
   }
 
   function logout() {
-    localStorage.clear();
+    clearSession();
     navigate('/login');
   }
 
@@ -49,19 +83,34 @@ export default function RoomsPage() {
           required
         />
         <select style={styles.select} value={language} onChange={(e) => setLanguage(e.target.value)}>
-          {['javascript', 'typescript', 'python', 'java', 'cpp', 'go', 'rust'].map((l) => (
+          {['javascript', 'typescript', 'python', 'java', 'cpp', 'c', 'go', 'rust'].map((l) => (
             <option key={l} value={l}>{l}</option>
           ))}
         </select>
-        <button style={styles.button} type="submit">Create room</button>
+        <select style={styles.select} value={accessMode} onChange={(e) => setAccessMode(e.target.value as 'public' | 'invite')}>
+          <option value="public">Public link</option>
+          <option value="invite">Invite only</option>
+        </select>
+        <select style={styles.select} value={defaultRole} onChange={(e) => setDefaultRole(e.target.value as 'editor' | 'viewer')}>
+          <option value="editor">Editors</option>
+          <option value="viewer">Viewers</option>
+        </select>
+        <button style={styles.button} type="submit" disabled={creating}>
+          {creating ? 'Creating…' : 'Create room'}
+        </button>
       </form>
 
+      {error && <p style={styles.error}>{error}</p>}
+
       <div style={styles.list}>
-        {rooms.length === 0 && <p style={styles.empty}>No rooms yet. Create one above.</p>}
+        {loading && <p style={styles.empty}>Loading rooms…</p>}
+        {!loading && rooms.length === 0 && <p style={styles.empty}>No rooms yet. Create one above.</p>}
         {rooms.map((room) => (
           <div key={room.id} style={styles.card} onClick={() => navigate(`/room/${room.id}`)}>
             <div style={styles.roomName}>{room.name}</div>
-            <div style={styles.meta}>{room.language} · {room.owner_name}</div>
+            <div style={styles.meta}>
+              {room.language} · {room.owner_name} · {room.access_mode === 'invite' ? 'invite-only' : 'public'} · {room.current_user_role}
+            </div>
           </div>
         ))}
       </div>
@@ -74,7 +123,7 @@ const styles: Record<string, React.CSSProperties> = {
   header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 },
   title: { color: '#569cd6', fontSize: 24, fontWeight: 700 },
   logout: { background: 'none', border: '1px solid #3c3c3c', color: '#d4d4d4', padding: '6px 12px', borderRadius: 4, cursor: 'pointer' },
-  form: { display: 'flex', gap: 8, marginBottom: 24 },
+  form: { display: 'flex', gap: 8, marginBottom: 24, flexWrap: 'wrap' },
   input: { flex: 1, padding: '8px 12px', borderRadius: 4, border: '1px solid #3c3c3c', background: '#252526', color: '#d4d4d4', fontSize: 14 },
   select: { padding: '8px 12px', borderRadius: 4, border: '1px solid #3c3c3c', background: '#252526', color: '#d4d4d4', fontSize: 14 },
   button: { padding: '8px 16px', borderRadius: 4, border: 'none', background: '#0e639c', color: '#fff', fontSize: 14, cursor: 'pointer' },
@@ -83,4 +132,5 @@ const styles: Record<string, React.CSSProperties> = {
   roomName: { fontSize: 16, fontWeight: 600, color: '#d4d4d4', marginBottom: 4 },
   meta: { fontSize: 12, color: '#858585' },
   empty: { color: '#858585', fontSize: 14 },
+  error: { color: '#f44747', fontSize: 13, marginBottom: 12 },
 };

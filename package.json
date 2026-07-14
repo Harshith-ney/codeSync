@@ -7,7 +7,8 @@
     "dev:server": "npm --prefix server run dev",
     "dev:client": "npm --prefix client run dev",
     "build": "npm --prefix client run build && npm --prefix server run build",
-    "migrate": "npm --prefix server run migrate"
+    "migrate": "npm --prefix server run migrate",
+    "test:smoke": "node tests/smoke-local.mjs"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"

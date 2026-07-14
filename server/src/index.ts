@@ -11,12 +11,13 @@ import { setupWebSocket } from './ws';
 
 const app = express();
 const httpServer = createServer(app);
+const clientOrigin = process.env.CLIENT_URL || 'http://localhost:5173';
 
 const io = new Server(httpServer, {
-  cors: { origin: process.env.VITE_API_URL || 'http://localhost:5173', credentials: true },
+  cors: { origin: clientOrigin, credentials: true },
 });
 
-app.use(cors({ origin: process.env.VITE_API_URL || 'http://localhost:5173', credentials: true }));
+app.use(cors({ origin: clientOrigin, credentials: true }));
 app.use(express.json());
 
 app.use('/api/auth', authRoutes);

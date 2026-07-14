@@ -1,7 +1,9 @@
+import { clearSession, getAccessToken, getRefreshToken, updateAccessToken } from './auth';
+
 const BASE = '/api';
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const token = localStorage.getItem('accessToken');
+  const token = getAccessToken();
   const res = await fetch(`${BASE}${path}`, {
     ...options,
     headers: {
@@ -13,7 +15,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 
   if (res.status === 401) {
     // Try refresh
-    const refresh = localStorage.getItem('refreshToken');
+    const refresh = getRefreshToken();
     if (refresh) {
       const refreshRes = await fetch(`${BASE}/auth/refresh`, {
         method: 'POST',
@@ -22,12 +24,13 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
       });
       if (refreshRes.ok) {
         const { accessToken } = await refreshRes.json() as { accessToken: string };
-        localStorage.setItem('accessToken', accessToken);
+        updateAccessToken(accessToken);
         return request<T>(path, options);
       }
     }
-    localStorage.clear();
+    clearSession();
     window.location.href = '/login';
+    throw new Error('Session expired. Please log in again.');
   }
 
   if (!res.ok) {
@@ -41,6 +44,8 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 export const api = {
   post: <T>(path: string, body: unknown) =>
     request<T>(path, { method: 'POST', body: JSON.stringify(body) }),
+  patch: <T>(path: string, body: unknown) =>
+    request<T>(path, { method: 'PATCH', body: JSON.stringify(body) }),
   get: <T>(path: string) => request<T>(path),
   delete: <T>(path: string) => request<T>(path, { method: 'DELETE' }),
 };

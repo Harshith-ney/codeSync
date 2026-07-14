@@ -14,6 +14,37 @@ function signRefresh(userId: string) {
   return jwt.sign({ userId }, process.env.JWT_REFRESH_SECRET!, { expiresIn: '7d' });
 }
 
+router.post('/demo', async (_req: Request, res: Response): Promise<void> => {
+  const email = 'demo@codesync.local';
+  const username = 'Demo User';
+  const password = 'codesync-demo';
+
+  try {
+    let result = await db.query('SELECT id, username FROM users WHERE email = $1', [email]);
+
+    if (!result.rows[0]) {
+      const hash = await bcrypt.hash(password, 10);
+      const id = uuidv4();
+      result = await db.query(
+        `INSERT INTO users (id, username, email, password_hash)
+         VALUES ($1, $2, $3, $4)
+         RETURNING id, username`,
+        [id, username, email, hash],
+      );
+    }
+
+    const user = result.rows[0];
+    res.json({
+      accessToken: signAccess(user.id),
+      refreshToken: signRefresh(user.id),
+      userId: user.id,
+      username: user.username,
+    });
+  } catch {
+    res.status(500).json({ error: 'Demo login failed' });
+  }
+});
+
 router.post('/register', async (req: Request, res: Response): Promise<void> => {
   const { username, email, password } = req.body;
   if (!username || !email || !password) {

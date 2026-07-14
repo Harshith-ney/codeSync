@@ -1,37 +1,68 @@
 import { useState, FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
+import { setSession } from '../lib/auth';
 
 export default function LoginPage() {
   const navigate = useNavigate();
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [form, setForm] = useState({ username: '', email: '', password: '' });
   const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError('');
+    setSubmitting(true);
     try {
       if (mode === 'register') {
         const res = await api.post<{ accessToken: string; refreshToken: string; userId: string }>(
           '/auth/register', form,
         );
-        localStorage.setItem('accessToken', res.accessToken);
-        localStorage.setItem('refreshToken', res.refreshToken);
-        localStorage.setItem('userId', res.userId);
-        localStorage.setItem('username', form.username);
+        setSession({
+          accessToken: res.accessToken,
+          refreshToken: res.refreshToken,
+          userId: res.userId,
+          username: form.username,
+        });
       } else {
         const res = await api.post<{ accessToken: string; refreshToken: string; userId: string; username: string }>(
           '/auth/login', { email: form.email, password: form.password },
         );
-        localStorage.setItem('accessToken', res.accessToken);
-        localStorage.setItem('refreshToken', res.refreshToken);
-        localStorage.setItem('userId', res.userId);
-        localStorage.setItem('username', res.username);
+        setSession({
+          accessToken: res.accessToken,
+          refreshToken: res.refreshToken,
+          userId: res.userId,
+          username: res.username,
+        });
       }
       navigate('/');
     } catch (err: any) {
       setError(err.message);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleDemoLogin() {
+    setError('');
+    setSubmitting(true);
+    try {
+      const res = await api.post<{ accessToken: string; refreshToken: string; userId: string; username: string }>(
+        '/auth/demo',
+        {},
+      );
+      setSession({
+        accessToken: res.accessToken,
+        refreshToken: res.refreshToken,
+        userId: res.userId,
+        username: res.username,
+      });
+      navigate('/');
+    } catch (err: any) {
+      setError(err.message || 'Demo login failed');
+    } finally {
+      setSubmitting(false);
     }
   }
 
@@ -65,12 +96,16 @@ export default function LoginPage() {
           required
         />
         {error && <p style={styles.error}>{error}</p>}
-        <button style={styles.button} type="submit">
-          {mode === 'login' ? 'Log in' : 'Register'}
+        <button style={styles.button} type="submit" disabled={submitting}>
+          {submitting ? 'Working…' : mode === 'login' ? 'Log in' : 'Register'}
+        </button>
+        <button style={styles.secondaryButton} type="button" disabled={submitting} onClick={handleDemoLogin}>
+          Demo login
         </button>
         <button
           style={styles.link}
           type="button"
+          disabled={submitting}
           onClick={() => setMode(mode === 'login' ? 'register' : 'login')}
         >
           {mode === 'login' ? 'Create an account' : 'Already have an account?'}
@@ -85,7 +120,8 @@ const styles: Record<string, React.CSSProperties> = {
   form: { display: 'flex', flexDirection: 'column', gap: 12, width: 320, padding: 32, background: '#252526', borderRadius: 8 },
   title: { color: '#569cd6', fontSize: 28, fontWeight: 700, textAlign: 'center', marginBottom: 8 },
   input: { padding: '10px 12px', borderRadius: 4, border: '1px solid #3c3c3c', background: '#1e1e1e', color: '#d4d4d4', fontSize: 14 },
-  button: { padding: '10px 12px', borderRadius: 4, border: 'none', background: '#0e639c', color: '#fff', fontSize: 14, cursor: 'pointer' },
+  button: { padding: '10px 12px', borderRadius: 4, border: 'none', background: '#0e639c', color: '#fff', fontSize: 14, cursor: 'pointer', opacity: 1 },
+  secondaryButton: { padding: '10px 12px', borderRadius: 4, border: '1px solid #3c3c3c', background: '#1e1e1e', color: '#d4d4d4', fontSize: 14, cursor: 'pointer' },
   link: { background: 'none', border: 'none', color: '#569cd6', cursor: 'pointer', fontSize: 13, textAlign: 'center' },
   error: { color: '#f44747', fontSize: 13 },
 };
