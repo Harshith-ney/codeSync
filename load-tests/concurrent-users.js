@@ -17,10 +17,12 @@ export const options = {
   },
 };
 
-function cookieHeaderFor(url) {
-  const cookies = http.cookieJar().cookiesForURL(url);
-  return Object.entries(cookies)
-    .map(([name, values]) => `${name}=${values[0]}`)
+function cookieHeaderFrom(res) {
+  const raw = res.headers['Set-Cookie'] || res.headers['set-cookie'] || '';
+  return raw
+    .split(/,(?=\s*[^;,]+=)/g)
+    .map((cookie) => cookie.split(';')[0].trim())
+    .filter(Boolean)
     .join('; ');
 }
 
@@ -32,7 +34,7 @@ export function setup() {
   );
   check(auth, { 'demo auth ok': (res) => res.status === 200 });
 
-  const cookie = cookieHeaderFor(BASE_URL);
+  const cookie = cookieHeaderFrom(auth);
   const room = http.post(
     `${BASE_URL}/api/rooms`,
     JSON.stringify({
@@ -48,7 +50,10 @@ export function setup() {
       },
     },
   );
-  check(room, { 'room created': (res) => res.status === 201 || res.status === 200 });
+  const roomCreated = check(room, { 'room created': (res) => res.status === 201 || res.status === 200 });
+  if (!roomCreated) {
+    console.error(`room create failed: status=${room.status} body=${room.body}`);
+  }
 
   return {
     cookie,
