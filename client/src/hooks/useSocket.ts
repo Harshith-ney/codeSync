@@ -5,6 +5,7 @@ import { getUsername } from '../lib/auth';
 interface UseSocketOptions {
   roomId: string;
   onRoomState: (state: { content: string; revision: number; role?: string }) => void;
+  onCursors?: (cursors: Array<{ userId: string; username: string; position: number; selection?: { start: number; end: number }; typing?: boolean }>) => void;
   onCursorUpdate: (cursor: { userId: string; username: string; position: number; selection?: { start: number; end: number } }) => void;
   onUserJoined: (user: { userId: string; username: string }) => void;
   onUserLeft: (user: { userId: string }) => void;
@@ -17,6 +18,7 @@ interface UseSocketOptions {
 export function useSocket({
   roomId,
   onRoomState,
+  onCursors,
   onCursorUpdate,
   onUserJoined,
   onUserLeft,
@@ -28,6 +30,7 @@ export function useSocket({
   const socketRef = useRef<Socket | null>(null);
   const handlersRef = useRef({
     onRoomState,
+    onCursors,
     onCursorUpdate,
     onUserJoined,
     onUserLeft,
@@ -39,6 +42,7 @@ export function useSocket({
 
   handlersRef.current = {
     onRoomState,
+    onCursors,
     onCursorUpdate,
     onUserJoined,
     onUserLeft,
@@ -65,6 +69,7 @@ export function useSocket({
     socket.on('room_state', (state) => handlersRef.current.onRoomState(state));
     socket.on('yjs_sync', (update: number[]) => handlersRef.current.onYjsSync?.(update));
     socket.on('yjs_update', (update: number[]) => handlersRef.current.onYjsUpdate?.(update));
+    socket.on('cursors', (cursors) => handlersRef.current.onCursors?.(cursors));
     socket.on('cursor_update', (cursor) => handlersRef.current.onCursorUpdate(cursor));
     socket.on('user_joined', (user) => handlersRef.current.onUserJoined(user));
     socket.on('user_left', (user) => handlersRef.current.onUserLeft(user));
@@ -83,8 +88,8 @@ export function useSocket({
     };
   }, [roomId]);
 
-  const sendCursor = useCallback((position: number, selection?: { start: number; end: number }) => {
-    socketRef.current?.emit('cursor', { position, selection });
+  const sendCursor = useCallback((position: number, selection?: { start: number; end: number }, typing = false) => {
+    socketRef.current?.emit('cursor', { position, selection, typing });
   }, []);
 
   const sendYjsUpdate = useCallback((update: number[]) => {

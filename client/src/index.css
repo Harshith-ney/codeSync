@@ -12,16 +12,17 @@ body {
 .remote-cursor-label {
   display: inline-block;
   margin-left: 2px;
-  padding: 1px 6px;
-  border-radius: 4px;
+  padding: 1px 7px 1px 3px;
+  border-radius: 3px;
   color: #fff;
   font-size: 11px;
   font-weight: 700;
   line-height: 16px;
-  transform: translateY(-9px);
+  transform: translateY(-8px);
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.28);
   pointer-events: none;
   white-space: nowrap;
+  border-left: 2px solid #fff;
 }
 
 .remote-selection {

@@ -51,10 +51,11 @@ export default function Editor({ roomId, language, readOnly = false }: Props) {
   const bindingRef = useRef<MonacoBinding | null>(null);
   const initialYjsSyncRef = useRef(false);
   const sendYjsUpdateRef = useRef<(update: number[]) => void>(() => {});
+  const typingTimerRef = useRef<number | null>(null);
   const userId = getUserId() || 'anonymous';
   const [revision, setRevision] = useState(0);
 
-  const [cursors, setCursors] = useState<Array<{ userId: string; username: string; position: number; selection?: { start: number; end: number } }>>([]);
+  const [cursors, setCursors] = useState<Array<{ userId: string; username: string; position: number; selection?: { start: number; end: number }; typing?: boolean }>>([]);
   const [output, setOutput] = useState<{ title: string; body: string } | null>(null);
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [operationError, setOperationError] = useState<string | null>(null);
@@ -78,6 +79,7 @@ export default function Editor({ roomId, language, readOnly = false }: Props) {
       setRevision(rev);
       setConnectionError(null);
     },
+    onCursors: setCursors,
     onYjsSync: (update) => {
       Y.applyUpdate(ydocRef.current, new Uint8Array(update), 'remote-sync');
       initialYjsSyncRef.current = true;
@@ -121,6 +123,21 @@ export default function Editor({ roomId, language, readOnly = false }: Props) {
       const end = model.getOffsetAt(e.selection.getEndPosition());
       sendCursor(position, start === end ? undefined : { start, end });
     });
+
+    editor.onDidChangeModelContent(() => {
+      const model = editor.getModel();
+      if (!model || readOnly) return;
+      const offset = model.getOffsetAt(editor.getPosition() || model.getFullModelRange().getEndPosition());
+      sendCursor(offset, undefined, true);
+
+      if (typingTimerRef.current) window.clearTimeout(typingTimerRef.current);
+      typingTimerRef.current = window.setTimeout(() => {
+        const latestModel = editor.getModel();
+        if (!latestModel) return;
+        const latestOffset = latestModel.getOffsetAt(editor.getPosition() || latestModel.getFullModelRange().getEndPosition());
+        sendCursor(latestOffset, undefined, false);
+      }, 1200);
+    });
   }
 
   useEffect(() => {
@@ -157,6 +174,7 @@ export default function Editor({ roomId, language, readOnly = false }: Props) {
     return () => {
       bindingRef.current?.destroy();
       bindingRef.current = null;
+      if (typingTimerRef.current) window.clearTimeout(typingTimerRef.current);
     };
   }, []);
 

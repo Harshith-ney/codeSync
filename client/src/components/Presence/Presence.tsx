@@ -6,6 +6,7 @@ interface Cursor {
   username: string;
   position: number;
   selection?: { start: number; end: number };
+  typing?: boolean;
 }
 
 interface Props {
@@ -44,15 +45,17 @@ export default function Presence({ cursors, editorRef, monaco }: Props) {
       const safePosition = Math.max(0, Math.min(cursor.position, model.getValueLength()));
       const position = model.getPositionAt(safePosition);
       const userLabel = cursor.username || 'Collaborator';
+      const label = cursor.typing ? `${userLabel} typing` : userLabel;
       const cursorDecoration: Monaco.editor.IModelDeltaDecoration = {
         range: new monaco.Range(position.lineNumber, position.column, position.lineNumber, position.column),
         options: {
           stickiness: monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
           after: {
-            content: ` ${userLabel}`,
+            content: ` | ${label}`,
             inlineClassName: `remote-cursor-label remote-cursor-color-${colorIndex}`,
             cursorStops: monaco.editor.InjectedTextCursorStops.None,
           },
+          hoverMessage: { value: label },
         },
       };
 
@@ -98,12 +101,13 @@ export default function Presence({ cursors, editorRef, monaco }: Props) {
             background: colorFor(c.userId),
             color: '#fff',
             padding: '2px 8px',
-            borderRadius: 12,
+            borderRadius: 4,
             fontSize: 11,
             fontWeight: 600,
+            boxShadow: c.typing ? '0 0 0 2px rgba(255,255,255,.18)' : undefined,
           }}
         >
-          {c.username}
+          {c.typing ? `${c.username} typing` : c.username}
         </div>
       ))}
     </div>
