@@ -1,43 +1,86 @@
-// k6 load test — run with: k6 run load-tests/concurrent-users.js
-import { check } from 'k6';
+// k6 load test
+// Run against a deployed app:
+//   BASE_URL=https://codesync.example.com k6 run load-tests/concurrent-users.js
+import http from 'k6/http';
+import { check, sleep } from 'k6';
 import ws from 'k6/ws';
 
-export let options = {
-  vus: 50,
-  duration: '60s',
+const BASE_URL = (__ENV.BASE_URL || 'http://localhost:3001').replace(/\/$/, '');
+const WS_URL = BASE_URL.replace(/^http/, 'ws');
+
+export const options = {
+  vus: Number(__ENV.VUS || 50),
+  duration: __ENV.DURATION || '60s',
   thresholds: {
+    checks: ['rate>0.95'],
     ws_connecting: ['p(95)<200'],
   },
 };
 
-export default function () {
-  const url = 'ws://your-ec2-ip/socket.io/?roomId=test-room&EIO=4&transport=websocket';
+function cookieHeaderFor(url) {
+  const cookies = http.cookieJar().cookiesForURL(url);
+  return Object.entries(cookies)
+    .map(([name, values]) => `${name}=${values[0]}`)
+    .join('; ');
+}
 
-  const res = ws.connect(url, {}, function (socket) {
+export function setup() {
+  const auth = http.post(
+    `${BASE_URL}/api/auth/demo`,
+    JSON.stringify({}),
+    { headers: { 'Content-Type': 'application/json' } },
+  );
+  check(auth, { 'demo auth ok': (res) => res.status === 200 });
+
+  const cookie = cookieHeaderFor(BASE_URL);
+  const room = http.post(
+    `${BASE_URL}/api/rooms`,
+    JSON.stringify({
+      name: `k6 room ${Date.now()}`,
+      language: 'javascript',
+      accessMode: 'public',
+      defaultRole: 'editor',
+    }),
+    {
+      headers: {
+        'Content-Type': 'application/json',
+        Cookie: cookie,
+      },
+    },
+  );
+  check(room, { 'room created': (res) => res.status === 201 || res.status === 200 });
+
+  return {
+    cookie,
+    roomId: room.json('id'),
+  };
+}
+
+export default function (data) {
+  const url = `${WS_URL}/socket.io/?EIO=4&transport=websocket`;
+  const res = ws.connect(url, { headers: { Cookie: data.cookie } }, (socket) => {
     socket.on('open', () => {
-      // Join room
-      socket.send('40/');
-
-      // Send a test insert operation
-      socket.send(
-        JSON.stringify([
-          'operation',
-          {
-            type: 'insert',
-            position: 0,
-            content: 'a',
-            revision: 1,
-            userId: `user-${__VU}`,
-            roomId: 'test-room',
-          },
-        ]),
-      );
+      socket.send('40');
     });
 
-    socket.on('message', () => {});
-    socket.on('error', (e) => console.error('WS error', e));
-    socket.setTimeout(() => socket.close(), 5000);
+    socket.on('message', (message) => {
+      if (message.startsWith('40')) {
+        socket.send(`42["join_room",{"roomId":"${data.roomId}","username":"k6-${__VU}"}]`);
+      }
+      if (message.startsWith('42["room_state"')) {
+        socket.setInterval(() => {
+          socket.send(`42["cursor",{"position":${__ITER % 80},"selection":{"start":0,"end":${__ITER % 20}}}]`);
+        }, 1000);
+      }
+    });
+
+    socket.on('error', (error) => {
+      console.error(`socket error: ${error.error()}`);
+    });
+
+    socket.setTimeout(() => socket.close(), 10000);
   });
 
-  check(res, { 'status is 101': (r) => r && r.status === 101 });
+  check(res, { 'websocket upgraded': (r) => r && r.status === 101 });
+  sleep(1);
 }

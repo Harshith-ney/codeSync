@@ -2,6 +2,8 @@
 
 CodeSync is a real-time collaborative code editor built as a local-first portfolio project. It combines Monaco Editor, Socket.IO, Yjs CRDT document sync, PostgreSQL persistence, Redis-backed presence/pub-sub, and Judge0-powered code execution to deliver a Google Docs-style coding experience.
 
+![CodeSync demo](assets/codesync-demo.gif)
+
 ## Features
 
 - Real-time collaborative editing with Yjs CRDT-based conflict handling
@@ -83,7 +85,7 @@ Defined in [server/.env.example](/Users/harshitheturu/codeSync/server/.env.examp
 
 Defined in [client/.env.example](/Users/harshitheturu/codeSync/client/.env.example):
 
-- `VITE_WS_URL`: optional override for the Socket.IO server URL
+- `VITE_WS_URL`: optional override for the Socket.IO server URL; defaults to the current origin
 
 For local development, API requests use Vite's `/api` proxy to `http://localhost:3001`.
 
@@ -93,7 +95,11 @@ For local development, API requests use Vite's `/api` proxy to `http://localhost
 - `npm run build`: build client and server
 - `npm run migrate`: run server DB migrations
 - `npm run test:smoke`: run local integration smoke tests against a running server
-- `node load-tests/concurrent-users.js`: k6 scenario source for concurrency testing
+- `BASE_URL=https://your-domain k6 run load-tests/concurrent-users.js`: run the WebSocket load test
+
+## Deployment
+
+Deployment notes live in [docs/deployment.md](/Users/harshitheturu/codeSync/docs/deployment.md). The included EC2 setup script provisions Nginx, Certbot HTTPS, Redis, PM2 cluster mode, the React static build, and the Node server.
 
 ## Architecture Notes
 
@@ -152,6 +158,7 @@ The current portfolio-ready baseline includes:
 
 - clean root build via `npm run build`
 - repeatable local smoke suite via `npm run test:smoke`
+- deployable EC2/Nginx/Certbot/PM2 runbook in `docs/deployment.md`
 - local full-stack E2E with PostgreSQL, Redis, and Judge0
 - local auth, room creation, room loading, and editor bootstrapping
 - collaboration event wiring that avoids re-emitting remote edits
@@ -165,6 +172,6 @@ The current portfolio-ready baseline includes:
 
 ## What’s Next
 
-- wire up PM2, Nginx, HTTPS, and live AWS deployment
-- run and tune the k6 load test against a deployed instance
+- execute the deployment runbook on the target EC2/domain
+- run and tune the k6 load test against the deployed instance
 - add a demo GIF to the README

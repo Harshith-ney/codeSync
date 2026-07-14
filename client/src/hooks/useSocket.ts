@@ -51,8 +51,9 @@ export function useSocket({
   useEffect(() => {
     const username = getUsername() || 'Anonymous';
 
-    const socket = io(import.meta.env.VITE_WS_URL || 'http://localhost:3001', {
+    const socket = io(import.meta.env.VITE_WS_URL || window.location.origin, {
       withCredentials: true,
+      transports: ['websocket'],
     });
 
     socketRef.current = socket;

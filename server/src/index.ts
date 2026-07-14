@@ -14,6 +14,8 @@ const app = express();
 const httpServer = createServer(app);
 const clientOrigin = process.env.CLIENT_URL || 'http://localhost:5173';
 
+app.set('trust proxy', 1);
+
 const io = new Server(httpServer, {
   cors: { origin: clientOrigin, credentials: true },
 });

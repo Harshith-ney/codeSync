@@ -57,11 +57,12 @@
 - [ ] Deploy to AWS EC2 (t3.medium) using `infra/ec2-setup.sh`
 - [ ] Point domain, run Certbot, enable HTTPS in `infra/nginx.conf`
 - [x] Create example env files and document required variables
+- [x] Add deployment runbook for EC2, Nginx, Certbot, PM2, env setup, smoke test, and k6
 - [ ] Set up production environment variables on the live server
 - [ ] Run k6 load test (`load-tests/concurrent-users.js`) against live deployment
 - [ ] Validate p95 connection time < 200ms under 50 VUs
 - [x] Switch auth tokens from localStorage to httpOnly cookies (security hardening)
-- [ ] PM2 cluster mode config for multi-core utilization
+- [x] PM2 cluster mode config for multi-core utilization
 - [ ] Set up PostgreSQL on RDS (or EC2) with proper credentials
 
 ## Phase 5 — Product & Stretch Features ✅ MOSTLY DONE
@@ -73,7 +74,7 @@
 - [x] Improve language switching inside an already-open editor
 - [x] Add stdin support and richer execution UX
 - [x] Add per-room notes doc for shared ideas
-- [ ] Add demo GIF to README
+- [x] Add demo GIF to README
 
 ---
 
@@ -92,8 +93,9 @@
 
 ## Next Best Tasks
 
-1. Deploy with HTTPS and run the k6 load test against the live app
-2. Add a short demo GIF/video to the README
+1. Run `infra/ec2-setup.sh` on the target EC2 instance with the real repo URL, domain, and Certbot email
+2. Fill production `server/.env` on the live server and restart PM2
+3. Run `BASE_URL=https://your-domain k6 run load-tests/concurrent-users.js`
 
 ---
 
