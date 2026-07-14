@@ -1,32 +1,26 @@
-import { clearSession, getAccessToken, getRefreshToken, updateAccessToken } from './auth';
+import { clearSession } from './auth';
 
 const BASE = '/api';
+const AUTH_PATHS = ['/auth/login', '/auth/register', '/auth/demo', '/auth/refresh', '/auth/logout'];
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const token = getAccessToken();
   const res = await fetch(`${BASE}${path}`, {
     ...options,
+    credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...options.headers,
     },
   });
 
-  if (res.status === 401) {
-    // Try refresh
-    const refresh = getRefreshToken();
-    if (refresh) {
-      const refreshRes = await fetch(`${BASE}/auth/refresh`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refreshToken: refresh }),
-      });
-      if (refreshRes.ok) {
-        const { accessToken } = await refreshRes.json() as { accessToken: string };
-        updateAccessToken(accessToken);
-        return request<T>(path, options);
-      }
+  if (res.status === 401 && !AUTH_PATHS.includes(path)) {
+    const refreshRes = await fetch(`${BASE}/auth/refresh`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    if (refreshRes.ok) {
+      return request<T>(path, options);
     }
     clearSession();
     window.location.href = '/login';
@@ -38,7 +32,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     throw new Error(body.error || res.statusText);
   }
 
-  return res.json() as Promise<T>;
+  return res.json().catch(() => ({})) as Promise<T>;
 }
 
 export const api = {

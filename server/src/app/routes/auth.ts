@@ -1,4 +1,4 @@
-import { Router, Request, Response } from 'express';
+import { CookieOptions, Router, Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { v4 as uuidv4 } from 'uuid';
@@ -12,6 +12,34 @@ function signAccess(userId: string) {
 
 function signRefresh(userId: string) {
   return jwt.sign({ userId }, process.env.JWT_REFRESH_SECRET!, { expiresIn: '7d' });
+}
+
+const isProduction = process.env.NODE_ENV === 'production';
+
+const accessCookieOptions: CookieOptions = {
+  httpOnly: true,
+  sameSite: 'lax',
+  secure: isProduction,
+  path: '/',
+  maxAge: 15 * 60 * 1000,
+};
+
+const refreshCookieOptions: CookieOptions = {
+  httpOnly: true,
+  sameSite: 'lax',
+  secure: isProduction,
+  path: '/api/auth',
+  maxAge: 7 * 24 * 60 * 60 * 1000,
+};
+
+function setAuthCookies(res: Response, userId: string) {
+  res.cookie('accessToken', signAccess(userId), accessCookieOptions);
+  res.cookie('refreshToken', signRefresh(userId), refreshCookieOptions);
+}
+
+function clearAuthCookies(res: Response) {
+  res.clearCookie('accessToken', accessCookieOptions);
+  res.clearCookie('refreshToken', refreshCookieOptions);
 }
 
 router.post('/demo', async (_req: Request, res: Response): Promise<void> => {
@@ -34,9 +62,8 @@ router.post('/demo', async (_req: Request, res: Response): Promise<void> => {
     }
 
     const user = result.rows[0];
+    setAuthCookies(res, user.id);
     res.json({
-      accessToken: signAccess(user.id),
-      refreshToken: signRefresh(user.id),
       userId: user.id,
       username: user.username,
     });
@@ -59,9 +86,8 @@ router.post('/register', async (req: Request, res: Response): Promise<void> => {
       'INSERT INTO users (id, username, email, password_hash) VALUES ($1, $2, $3, $4)',
       [id, username, email, hash],
     );
-    const accessToken = signAccess(id);
-    const refreshToken = signRefresh(id);
-    res.status(201).json({ accessToken, refreshToken, userId: id });
+    setAuthCookies(res, id);
+    res.status(201).json({ userId: id, username });
   } catch (err: any) {
     if (err.code === '23505') {
       res.status(409).json({ error: 'Email or username already taken' });
@@ -85,9 +111,8 @@ router.post('/login', async (req: Request, res: Response): Promise<void> => {
       res.status(401).json({ error: 'Invalid credentials' });
       return;
     }
+    setAuthCookies(res, user.id);
     res.json({
-      accessToken: signAccess(user.id),
-      refreshToken: signRefresh(user.id),
       userId: user.id,
       username: user.username,
     });
@@ -97,7 +122,7 @@ router.post('/login', async (req: Request, res: Response): Promise<void> => {
 });
 
 router.post('/refresh', async (req: Request, res: Response): Promise<void> => {
-  const { refreshToken } = req.body;
+  const refreshToken = req.cookies.refreshToken;
   if (!refreshToken) {
     res.status(400).json({ error: 'No refresh token' });
     return;
@@ -105,10 +130,17 @@ router.post('/refresh', async (req: Request, res: Response): Promise<void> => {
 
   try {
     const payload = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET!) as { userId: string };
-    res.json({ accessToken: signAccess(payload.userId) });
+    res.cookie('accessToken', signAccess(payload.userId), accessCookieOptions);
+    res.json({ ok: true });
   } catch {
+    clearAuthCookies(res);
     res.status(401).json({ error: 'Invalid refresh token' });
   }
+});
+
+router.post('/logout', (_req: Request, res: Response): void => {
+  clearAuthCookies(res);
+  res.json({ ok: true });
 });
 
 export default router;

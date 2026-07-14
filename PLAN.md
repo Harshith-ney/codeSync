@@ -21,12 +21,12 @@
 
 - [x] Socket.IO server with JWT auth middleware on handshake
 - [x] Yjs CRDT document sync — concurrent insert/delete convergence
-- [x] In-memory room state with bounded history (last 1000 ops)
+- [x] In-memory room state with bounded history entries for replay
 - [x] Debounced PostgreSQL persistence (2s after last edit)
 - [x] Redis pub/sub for multi-instance horizontal scaling
 - [x] Cursor/selection presence — Redis-backed with 30s TTL
 - [x] Monaco Editor integration on client
-- [x] `useSocket` hook — room join, op/cursor sync
+- [x] `useSocket` hook — room join, Yjs update sync, and cursor sync
 - [x] Monaco/Yjs binding — change tracking, CRDT update sync, remote update application
 - [x] Presence badge UI (collaborator cursors in top-right)
 - [x] Code execution via Judge0 (JS, TS, Python, Java, C++, C, Go, Rust)
@@ -50,6 +50,7 @@
 - [x] Make the output panel more prominent in the UI
 - [x] Test the full stack manually with live PostgreSQL + Redis + Judge0 in a clean local environment
 - [x] Add repeatable local smoke tests for Yjs collaboration, cursors, notes, permissions, and execution
+- [x] Remove legacy OT socket path after Yjs migration
 
 ## Phase 4 — Infrastructure & Hardening 🔲 TODO
 
@@ -59,7 +60,7 @@
 - [ ] Set up production environment variables on the live server
 - [ ] Run k6 load test (`load-tests/concurrent-users.js`) against live deployment
 - [ ] Validate p95 connection time < 200ms under 50 VUs
-- [ ] Switch auth tokens from localStorage to httpOnly cookies (security hardening)
+- [x] Switch auth tokens from localStorage to httpOnly cookies (security hardening)
 - [ ] PM2 cluster mode config for multi-core utilization
 - [ ] Set up PostgreSQL on RDS (or EC2) with proper credentials
 
@@ -87,12 +88,12 @@
 - [x] Judge0 execution errors now surface more clearly
 - [x] Java `Main` class mismatch fixed for execution
 - [x] README and `.env.example` files added
+- [x] Legacy OT files and socket events removed; history replay kept as a separate audit/replay helper
 
 ## Next Best Tasks
 
-1. Start production hardening by moving auth from `localStorage` to `httpOnly` cookies
-2. Deploy with HTTPS and run the k6 load test against the live app
-3. Add a short demo GIF/video to the README
+1. Deploy with HTTPS and run the k6 load test against the live app
+2. Add a short demo GIF/video to the README
 
 ---
 
@@ -102,5 +103,5 @@
 |---|---|
 | Yjs CRDT over Socket.IO | Better concurrent merging; custom provider layer is less mature than y-websocket |
 | In-memory Yjs room state | Fast collaboration; 2s window of potential data loss on crash |
-| localStorage tokens | Simple dev experience; not production-secure |
+| httpOnly auth cookies | Better XSS resistance; needs same-origin/proxy-aware API and Socket.IO credentials |
 | Debounced DB writes (2s) | Reduces DB load; trades off immediate durability |

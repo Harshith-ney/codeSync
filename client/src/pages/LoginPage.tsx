@@ -16,22 +16,18 @@ export default function LoginPage() {
     setSubmitting(true);
     try {
       if (mode === 'register') {
-        const res = await api.post<{ accessToken: string; refreshToken: string; userId: string }>(
+        const res = await api.post<{ userId: string; username: string }>(
           '/auth/register', form,
         );
         setSession({
-          accessToken: res.accessToken,
-          refreshToken: res.refreshToken,
           userId: res.userId,
-          username: form.username,
+          username: res.username,
         });
       } else {
-        const res = await api.post<{ accessToken: string; refreshToken: string; userId: string; username: string }>(
+        const res = await api.post<{ userId: string; username: string }>(
           '/auth/login', { email: form.email, password: form.password },
         );
         setSession({
-          accessToken: res.accessToken,
-          refreshToken: res.refreshToken,
           userId: res.userId,
           username: res.username,
         });
@@ -48,13 +44,11 @@ export default function LoginPage() {
     setError('');
     setSubmitting(true);
     try {
-      const res = await api.post<{ accessToken: string; refreshToken: string; userId: string; username: string }>(
+      const res = await api.post<{ userId: string; username: string }>(
         '/auth/demo',
         {},
       );
       setSession({
-        accessToken: res.accessToken,
-        refreshToken: res.refreshToken,
         userId: res.userId,
         username: res.username,
       });

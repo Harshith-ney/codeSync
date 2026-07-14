@@ -121,13 +121,13 @@ Accepted Yjs updates are reflected into the live document snapshot. The server a
 
 ### Redis role
 
-Redis is optional for local single-instance development. When available, it stores presence state and publishes operations across instances. If Redis is unavailable, the server falls back to in-process collaboration broadcasts.
+Redis is optional for local single-instance development. When available, it stores presence state and publishes Yjs updates across instances. If Redis is unavailable, the server falls back to in-process collaboration broadcasts.
 
-For multi-instance deployments, Redis pub/sub lets one Socket.IO process fan out operations that were accepted by another process. Presence also uses Redis TTLs so stale cursors naturally expire.
+For multi-instance deployments, Redis pub/sub lets one Socket.IO process fan out Yjs updates that were accepted by another process. Presence also uses Redis TTLs so stale cursors naturally expire.
 
 ### Room access model
 
-Rooms can be public or invite-only. Public rooms grant the room's default role to any authenticated user with the link. Invite-only rooms require a valid invite token, which creates a `room_members` record. Owners can set the default invite role to editor or viewer. Viewer mode is enforced both in the React editor and in the Socket.IO operation handler, so a viewer cannot bypass the UI and emit edits directly.
+Rooms can be public or invite-only. Public rooms grant the room's default role to any authenticated user with the link. Invite-only rooms require a valid invite token, which creates a `room_members` record. Owners can set the default invite role to editor or viewer. Viewer mode is enforced both in the React editor and in the Socket.IO Yjs update handler, so a viewer cannot bypass the UI and emit edits directly.
 
 ### Shared notes
 
@@ -141,7 +141,7 @@ The execution panel supports stdin and surfaces run, result, timeout, and servic
 
 ## Known Tradeoffs
 
-- Auth tokens are stored in `localStorage` for simplicity in this portfolio pass
+- Auth uses `httpOnly` cookies; user id/name are kept in `localStorage` only for client-side routing and labels
 - Yjs document state is snapshotted as plain text instead of storing native Yjs binary updates
 - Version-history replay depends on operations logged after the feature was introduced; older edits only exist in the current snapshot
 - Redis presence currently favors simplicity over advanced cleanup/indexing
@@ -165,7 +165,6 @@ The current portfolio-ready baseline includes:
 
 ## What’s Next
 
-- migrate auth from `localStorage` to `httpOnly` cookies
 - wire up PM2, Nginx, HTTPS, and live AWS deployment
 - run and tune the k6 load test against a deployed instance
 - add a demo GIF to the README

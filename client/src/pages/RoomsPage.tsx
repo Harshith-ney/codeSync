@@ -62,9 +62,13 @@ export default function RoomsPage() {
     }
   }
 
-  function logout() {
-    clearSession();
-    navigate('/login');
+  async function logout() {
+    try {
+      await api.post('/auth/logout', {});
+    } finally {
+      clearSession();
+      navigate('/login');
+    }
   }
 
   return (

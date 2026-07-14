@@ -2,14 +2,23 @@ import { Server, Socket } from 'socket.io';
 import jwt from 'jsonwebtoken';
 import * as Y from 'yjs';
 import { redis, setCursor, getCursors, removeCursor } from './presence';
-import { Operation, transform, applyOperation } from './operations';
 import { db } from '../db';
+
+interface HistoryOperation {
+  type: 'insert' | 'delete';
+  position: number;
+  content?: string;
+  length?: number;
+  revision: number;
+  userId: string;
+  roomId: string;
+}
 
 // In-memory room state: revision + document content
 const roomState = new Map<string, {
   revision: number;
   content: string;
-  history: Operation[];
+  history: HistoryOperation[];
   ydoc: Y.Doc;
   ytext: Y.Text;
 }>();
@@ -43,7 +52,21 @@ function fromUpdatePayload(update: number[]) {
   return new Uint8Array(update);
 }
 
-function diffToOperation(before: string, after: string, base: Pick<Operation, 'revision' | 'userId' | 'roomId'>): Operation | null {
+function parseCookieHeader(header?: string) {
+  if (!header) return {};
+  return header.split(';').reduce<Record<string, string>>((cookies, part) => {
+    const [rawKey, ...rawValue] = part.trim().split('=');
+    if (!rawKey || rawValue.length === 0) return cookies;
+    cookies[rawKey] = decodeURIComponent(rawValue.join('='));
+    return cookies;
+  }, {});
+}
+
+function diffToOperation(
+  before: string,
+  after: string,
+  base: Pick<HistoryOperation, 'revision' | 'userId' | 'roomId'>,
+): HistoryOperation | null {
   if (before === after) return null;
 
   let start = 0;
@@ -72,7 +95,7 @@ function diffToOperation(before: string, after: string, base: Pick<Operation, 'r
   return null;
 }
 
-async function logOperation(op: Operation) {
+async function logOperation(op: HistoryOperation) {
   await db.query(
     `INSERT INTO document_operations (room_id, user_id, type, position, content, length, revision)
      VALUES ($1, $2, $3, $4, $5, $6, $7)`,
@@ -143,29 +166,27 @@ export function setupWebSocket(io: Server) {
   });
 
   sub.on('message', async (channel: string, message: string) => {
-    if (channel.startsWith('yjs-room:')) {
-      const roomId = channel.replace('yjs-room:', '');
-      const update = fromUpdatePayload(JSON.parse(message) as number[]);
-      const state = await getRoomState(roomId);
-      const before = state.ytext.toString();
-      Y.applyUpdate(state.ydoc, update, 'redis-yjs');
-      const after = state.ytext.toString();
-      if (before !== after) {
-        state.content = after;
-        state.revision += 1;
-        schedulePersist(roomId);
-      }
-      io.to(roomId).emit('yjs_update', toUpdatePayload(update));
+    if (!channel.startsWith('yjs-room:')) {
       return;
     }
 
-    const roomId = channel.replace('room:', '');
-    const op = JSON.parse(message) as Operation;
-    io.to(roomId).emit('operation', op);
+    const roomId = channel.replace('yjs-room:', '');
+    const update = fromUpdatePayload(JSON.parse(message) as number[]);
+    const state = await getRoomState(roomId);
+    const before = state.ytext.toString();
+    Y.applyUpdate(state.ydoc, update, 'redis-yjs');
+    const after = state.ytext.toString();
+    if (before !== after) {
+      state.content = after;
+      state.revision += 1;
+      schedulePersist(roomId);
+    }
+    io.to(roomId).emit('yjs_update', toUpdatePayload(update));
   });
 
   io.use((socket: Socket, next) => {
-    const token = socket.handshake.auth.token as string;
+    const cookies = parseCookieHeader(socket.handshake.headers.cookie);
+    const token = cookies.accessToken || socket.handshake.auth.token as string;
     if (!token) return next(new Error('Authentication required'));
     try {
       const payload = jwt.verify(token, process.env.JWT_SECRET!) as { userId: string };
@@ -192,7 +213,6 @@ export function setupWebSocket(io: Server) {
       (socket as any).roomRole = role;
 
       try {
-        await sub.subscribe(`room:${roomId}`);
         await sub.subscribe(`yjs-room:${roomId}`);
       } catch { /* Redis unavailable, single-instance mode */ }
 
@@ -243,57 +263,6 @@ export function setupWebSocket(io: Server) {
       try {
         await redis.publish(`yjs-room:${roomId}`, JSON.stringify(toUpdatePayload(update)));
       } catch { /* Redis unavailable, local broadcast already sent */ }
-    });
-
-    socket.on('operation', async (op: Operation) => {
-      const roomId = (socket as any).roomId as string;
-      if (!roomId) return;
-      if (!canEdit((socket as any).roomRole)) {
-        socket.emit('operation_error', { message: 'This room is read-only for you.' });
-        return;
-      }
-
-      const state = await getRoomState(roomId);
-
-      let transformedOp = { ...op };
-
-      // Transform against all ops applied since the client's revision
-      if (op.revision < state.revision) {
-        const opsToTransformAgainst = state.history.slice(op.revision);
-        for (const appliedOp of opsToTransformAgainst) {
-          transformedOp = transform(transformedOp, appliedOp);
-        }
-      }
-
-      transformedOp.revision = state.revision + 1;
-      state.content = applyOperation(state.content, transformedOp);
-      state.ydoc.transact(() => {
-        if (transformedOp.type === 'insert' && transformedOp.content) {
-          state.ytext.insert(transformedOp.position, transformedOp.content);
-        } else if (transformedOp.type === 'delete' && transformedOp.length) {
-          state.ytext.delete(transformedOp.position, transformedOp.length);
-        }
-      }, 'legacy-operation');
-      state.revision = transformedOp.revision;
-      state.history.push(transformedOp);
-
-      try {
-        await logOperation(transformedOp);
-      } catch (err: any) {
-        console.warn('[History] failed to log operation:', err.message);
-      }
-
-      // Keep history bounded
-      if (state.history.length > 1000) state.history.splice(0, 500);
-
-      schedulePersist(roomId);
-
-      // Try Redis pub/sub; fall back to direct broadcast for single-instance dev
-      try {
-        await redis.publish(`room:${roomId}`, JSON.stringify(transformedOp));
-      } catch {
-        io.to(roomId).emit('operation', transformedOp);
-      }
     });
 
     socket.on('cursor', async (cursorState: { position: number; selection?: { start: number; end: number } }) => {

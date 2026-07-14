@@ -9,15 +9,45 @@ const sockets = [];
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-async function request(method, path, body, token) {
+class TestSession {
+  cookies = new Map();
+
+  get cookieHeader() {
+    return Array.from(this.cookies.entries()).map(([key, value]) => `${key}=${value}`).join('; ');
+  }
+
+  absorb(res) {
+    const setCookies = typeof res.headers.getSetCookie === 'function'
+      ? res.headers.getSetCookie()
+      : splitSetCookieHeader(res.headers.get('set-cookie'));
+
+    for (const setCookie of setCookies) {
+      const [pair] = setCookie.split(';');
+      const separator = pair.indexOf('=');
+      if (separator < 0) continue;
+      const key = pair.slice(0, separator);
+      const value = pair.slice(separator + 1);
+      if (!value) this.cookies.delete(key);
+      else this.cookies.set(key, value);
+    }
+  }
+}
+
+function splitSetCookieHeader(header) {
+  if (!header) return [];
+  return header.split(/,(?=\s*[^;,]+=)/g).map((value) => value.trim());
+}
+
+async function request(method, path, body, session) {
   const res = await fetch(`${API}${path}`, {
     method,
     headers: {
       'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(session?.cookieHeader ? { Cookie: session.cookieHeader } : {}),
     },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
+  session?.absorb(res);
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     throw new Error(`${method} ${path} failed: ${res.status} ${JSON.stringify(data)}`);
@@ -25,10 +55,10 @@ async function request(method, path, body, token) {
   return data;
 }
 
-const get = (path, token) => request('GET', path, undefined, token);
-const post = (path, body, token) => request('POST', path, body, token);
-const patch = (path, body, token) => request('PATCH', path, body, token);
-const del = (path, token) => request('DELETE', path, undefined, token);
+const get = (path, session) => request('GET', path, undefined, session);
+const post = (path, body, session) => request('POST', path, body, session);
+const patch = (path, body, session) => request('PATCH', path, body, session);
+const del = (path, session) => request('DELETE', path, undefined, session);
 
 function waitFor(socket, event, timeoutMs = 8000) {
   return new Promise((resolve, reject) => {
@@ -40,8 +70,12 @@ function waitFor(socket, event, timeoutMs = 8000) {
   });
 }
 
-function connect(token) {
-  const socket = io(WS, { auth: { token }, forceNew: true, transports: ['websocket'] });
+function connect(session) {
+  const socket = io(WS, {
+    extraHeaders: session?.cookieHeader ? { Cookie: session.cookieHeader } : {},
+    forceNew: true,
+    transports: ['websocket'],
+  });
   sockets.push(socket);
   return socket;
 }
@@ -61,29 +95,31 @@ async function assertServerReady() {
 }
 
 async function makeUser(label) {
-  return post('/auth/register', {
+  const session = new TestSession();
+  const user = await post('/auth/register', {
     username: `${label}_${suffix}`,
     email: `${label}_${suffix}@codesync.local`,
     password: 'codesync-test',
-  });
+  }, session);
+  return Object.assign(session, user);
 }
 
-async function createRoom(ownerToken, overrides = {}) {
+async function createRoom(owner, overrides = {}) {
   const room = await post('/rooms', {
     name: `Smoke ${suffix}`,
     language: 'javascript',
     accessMode: 'public',
     defaultRole: 'editor',
     ...overrides,
-  }, ownerToken);
-  createdRooms.push({ id: room.id, ownerToken });
+  }, owner);
+  createdRooms.push({ id: room.id, owner });
   return room;
 }
 
 async function testYjsCollaboration(owner, userA, userB) {
-  const room = await createRoom(owner.accessToken, { name: `Yjs smoke ${suffix}` });
-  const socketA = connect(userA.accessToken);
-  const socketB = connect(userB.accessToken);
+  const room = await createRoom(owner, { name: `Yjs smoke ${suffix}` });
+  const socketA = connect(userA);
+  const socketB = connect(userB);
   await Promise.all([waitFor(socketA, 'connect'), waitFor(socketB, 'connect')]);
 
   const docA = new Y.Doc();
@@ -140,7 +176,7 @@ async function testYjsCollaboration(owner, userA, userB) {
   }
 
   const runnable = finalA.replace('console.log("Hello, World!");', 'console.log(alpha + beta);');
-  const execution = await post('/execute', { code: runnable, language: 'javascript', stdin: '' }, owner.accessToken);
+  const execution = await post('/execute', { code: runnable, language: 'javascript', stdin: '' }, owner);
   if (execution.status !== 'Accepted' || (execution.stdout || '').trim() !== '5') {
     throw new Error(`Merged code execution failed: ${JSON.stringify(execution)}\n${runnable}`);
   }
@@ -151,10 +187,10 @@ async function testYjsCollaboration(owner, userA, userB) {
 }
 
 async function testNotes(owner, reader) {
-  const room = await createRoom(owner.accessToken, { name: `Notes smoke ${suffix}` });
+  const room = await createRoom(owner, { name: `Notes smoke ${suffix}` });
   const content = `Smoke notes ${suffix}\n- shared ideas`;
-  await patch(`/rooms/${room.id}/notes`, { content }, owner.accessToken);
-  const notes = await get(`/rooms/${room.id}/notes`, reader.accessToken);
+  await patch(`/rooms/${room.id}/notes`, { content }, owner);
+  const notes = await get(`/rooms/${room.id}/notes`, reader);
   if (notes.content !== content) {
     throw new Error(`Notes did not persist for another user: ${JSON.stringify(notes)}`);
   }
@@ -162,12 +198,12 @@ async function testNotes(owner, reader) {
 }
 
 async function testViewerPermissions(owner, viewer) {
-  const room = await createRoom(owner.accessToken, {
+  const room = await createRoom(owner, {
     name: `Viewer smoke ${suffix}`,
     defaultRole: 'viewer',
   });
 
-  const socket = connect(viewer.accessToken);
+  const socket = connect(viewer);
   await waitFor(socket, 'connect');
   const sync = waitFor(socket, 'room_state');
   socket.emit('join_room', { roomId: room.id, username: viewer.username });
@@ -185,7 +221,7 @@ async function testViewerPermissions(owner, viewer) {
 
   let notesBlocked = false;
   try {
-    await patch(`/rooms/${room.id}/notes`, { content: 'viewer write' }, viewer.accessToken);
+    await patch(`/rooms/${room.id}/notes`, { content: 'viewer write' }, viewer);
   } catch (error) {
     notesBlocked = String(error.message).includes('403');
   }
@@ -203,7 +239,7 @@ async function cleanup() {
   }
   await sleep(2300);
   for (const room of createdRooms.reverse()) {
-    await del(`/rooms/${room.id}`, room.ownerToken).catch(() => {});
+    await del(`/rooms/${room.id}`, room.owner).catch(() => {});
   }
 }
 
@@ -211,7 +247,8 @@ async function main() {
   const passed = [];
   try {
     await assertServerReady();
-    const owner = await post('/auth/demo', {});
+    const ownerSession = new TestSession();
+    const owner = Object.assign(ownerSession, await post('/auth/demo', {}, ownerSession));
     const userA = await makeUser('smoke_a');
     const userB = await makeUser('smoke_b');
     passed.push('server health and auth');

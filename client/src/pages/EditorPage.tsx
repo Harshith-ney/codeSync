@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
 import Editor from '../components/Editor/Editor';
-import { applyOperation } from '../lib/ot';
+import { applyHistoryOperation } from '../lib/history';
 
 interface Room {
   id: string;
@@ -304,7 +304,7 @@ function buildHistoryPreview(history: HistoryOperation[], revision: number | nul
   const maxRevision = revision ?? history[history.length - 1]?.revision ?? 0;
   return history
     .filter((op) => op.revision <= maxRevision)
-    .reduce((content, op) => applyOperation(content, {
+    .reduce((content, op) => applyHistoryOperation(content, {
       type: op.type,
       position: op.position,
       content: op.content || undefined,

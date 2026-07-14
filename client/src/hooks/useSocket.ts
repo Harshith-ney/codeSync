@@ -1,11 +1,9 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { io, Socket } from 'socket.io-client';
-import { Operation } from '../lib/ot';
-import { getAccessToken, getUsername } from '../lib/auth';
+import { getUsername } from '../lib/auth';
 
 interface UseSocketOptions {
   roomId: string;
-  onOperation: (op: Operation) => void;
   onRoomState: (state: { content: string; revision: number; role?: string }) => void;
   onCursorUpdate: (cursor: { userId: string; username: string; position: number; selection?: { start: number; end: number } }) => void;
   onUserJoined: (user: { userId: string; username: string }) => void;
@@ -18,7 +16,6 @@ interface UseSocketOptions {
 
 export function useSocket({
   roomId,
-  onOperation,
   onRoomState,
   onCursorUpdate,
   onUserJoined,
@@ -30,7 +27,6 @@ export function useSocket({
 }: UseSocketOptions) {
   const socketRef = useRef<Socket | null>(null);
   const handlersRef = useRef({
-    onOperation,
     onRoomState,
     onCursorUpdate,
     onUserJoined,
@@ -42,7 +38,6 @@ export function useSocket({
   });
 
   handlersRef.current = {
-    onOperation,
     onRoomState,
     onCursorUpdate,
     onUserJoined,
@@ -54,11 +49,10 @@ export function useSocket({
   };
 
   useEffect(() => {
-    const token = getAccessToken();
     const username = getUsername() || 'Anonymous';
 
     const socket = io(import.meta.env.VITE_WS_URL || 'http://localhost:3001', {
-      auth: { token },
+      withCredentials: true,
     });
 
     socketRef.current = socket;
@@ -68,7 +62,6 @@ export function useSocket({
     });
 
     socket.on('room_state', (state) => handlersRef.current.onRoomState(state));
-    socket.on('operation', (op) => handlersRef.current.onOperation(op));
     socket.on('yjs_sync', (update: number[]) => handlersRef.current.onYjsSync?.(update));
     socket.on('yjs_update', (update: number[]) => handlersRef.current.onYjsUpdate?.(update));
     socket.on('cursor_update', (cursor) => handlersRef.current.onCursorUpdate(cursor));
@@ -89,10 +82,6 @@ export function useSocket({
     };
   }, [roomId]);
 
-  const sendOperation = useCallback((op: Operation) => {
-    socketRef.current?.emit('operation', op);
-  }, []);
-
   const sendCursor = useCallback((position: number, selection?: { start: number; end: number }) => {
     socketRef.current?.emit('cursor', { position, selection });
   }, []);
@@ -101,5 +90,5 @@ export function useSocket({
     socketRef.current?.emit('yjs_update', update);
   }, []);
 
-  return { sendOperation, sendCursor, sendYjsUpdate };
+  return { sendCursor, sendYjsUpdate };
 }

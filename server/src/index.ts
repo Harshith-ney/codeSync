@@ -2,6 +2,7 @@ import 'dotenv/config';
 import { createServer } from 'http';
 import express from 'express';
 import cors from 'cors';
+import cookieParser from 'cookie-parser';
 import { Server } from 'socket.io';
 
 import authRoutes from './app/routes/auth';
@@ -18,6 +19,7 @@ const io = new Server(httpServer, {
 });
 
 app.use(cors({ origin: clientOrigin, credentials: true }));
+app.use(cookieParser());
 app.use(express.json());
 
 app.use('/api/auth', authRoutes);

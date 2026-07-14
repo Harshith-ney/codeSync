@@ -73,7 +73,6 @@ export default function Editor({ roomId, language, readOnly = false }: Props) {
 
   const { sendCursor, sendYjsUpdate } = useSocket({
     roomId,
-    onOperation: () => {},
     onRoomState: ({ content, revision: rev }) => {
       const value = content ?? LANGUAGE_TEMPLATES[language] ?? '';
       pendingInitialStateRef.current = { content: value, revision: rev };
