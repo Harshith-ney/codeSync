@@ -240,25 +240,31 @@ export function setupWebSocket(io: Server) {
       const update = fromUpdatePayload(payload);
       Y.applyUpdate(state.ydoc, update, socket.id);
       const after = state.ytext.toString();
-      if (before === after) return;
 
-      state.content = after;
-      state.revision += 1;
+      // A Yjs update can leave the plain-text view unchanged (e.g. typing over an
+      // auto-closed bracket) while still introducing new CRDT structure that other
+      // clients need. Forward every update regardless of before/after; only gate
+      // revision/history/persistence bookkeeping on whether the text actually changed.
+      if (before !== after) {
+        state.content = after;
+        state.revision += 1;
 
-      const op = diffToOperation(before, after, {
-        revision: state.revision,
-        userId,
-        roomId,
-      });
-      if (op) {
-        state.history.push(op);
-        if (state.history.length > 1000) state.history.splice(0, 500);
-        try { await logOperation(op); } catch (err: any) {
-          console.warn('[History] failed to log Yjs operation:', err.message);
+        const op = diffToOperation(before, after, {
+          revision: state.revision,
+          userId,
+          roomId,
+        });
+        if (op) {
+          state.history.push(op);
+          if (state.history.length > 1000) state.history.splice(0, 500);
+          try { await logOperation(op); } catch (err: any) {
+            console.warn('[History] failed to log Yjs operation:', err.message);
+          }
         }
+
+        schedulePersist(roomId);
       }
 
-      schedulePersist(roomId);
       io.to(roomId).except(socket.id).emit('typing_update', {
         userId,
         username: (socket as any).username as string,

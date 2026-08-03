@@ -215,6 +215,7 @@ The current portfolio-ready baseline includes:
 - local full-stack E2E with PostgreSQL, Redis, and Judge0
 - local auth, room creation, room loading, and editor bootstrapping
 - collaboration event wiring that avoids re-emitting remote edits
+- Yjs document sync verified for compound edits (e.g. typing over an auto-closed bracket), where a fix now forwards every update to other clients regardless of whether it changed the visible text
 - visual two-user typing presence verified locally, including labeled cursors in both connected editors
 - visible loading and error states for the main user flows
 - top-level React error boundary fallback
