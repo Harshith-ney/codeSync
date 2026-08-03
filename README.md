@@ -50,21 +50,7 @@ The most important engineering choice is the move from simple operation broadcas
 - Debounced PostgreSQL document persistence
 - In-editor code execution for JavaScript, TypeScript, Python, Java, C++, C, Go, and Rust with stdin support
 
-## Current Deployment Status
 
-- Production-style EC2 deployment is live on AWS with Nginx serving the React build and PM2 running the Node/Socket.IO server.
-- Deployed smoke test passed against the EC2 instance:
-
-```bash
-CODESYNC_API_URL=http://54.196.134.253/api CODESYNC_WS_URL=http://54.196.134.253 npm run test:smoke
-```
-
-- k6 WebSocket load test passed against the EC2 instance with 50 virtual users for 60 seconds:
-  - 100% checks passed
-  - 300 WebSocket sessions completed
-  - p95 WebSocket connect time around 121 ms
-
-The current EC2 deployment uses plain HTTP on the public IP for portfolio testing. A custom domain and HTTPS certificate are the next production-hardening step.
 
 ## Tech Stack
 
