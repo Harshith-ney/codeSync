@@ -49,6 +49,7 @@ export default function Editor({ roomId, language, readOnly = false }: Props) {
   const ydocRef = useRef(new Y.Doc());
   const ytextRef = useRef<Y.Text>(ydocRef.current.getText('monaco'));
   const bindingRef = useRef<MonacoBinding | null>(null);
+  const undoManagerRef = useRef<Y.UndoManager | null>(null);
   const initialYjsSyncRef = useRef(false);
   const sendYjsUpdateRef = useRef<(update: number[]) => void>(() => {});
   const typingTimerRef = useRef<number | null>(null);
@@ -74,6 +75,12 @@ export default function Editor({ roomId, language, readOnly = false }: Props) {
       model,
       new Set([editor]),
     );
+
+    // Scoped to this binding's transaction origin so each client only ever
+    // undoes its own edits, never a remote peer's.
+    undoManagerRef.current = new Y.UndoManager(ytextRef.current, {
+      trackedOrigins: new Set([bindingRef.current]),
+    });
   }, []);
 
   const upsertLocalCursor = useCallback((
@@ -144,9 +151,22 @@ export default function Editor({ roomId, language, readOnly = false }: Props) {
   });
   sendYjsUpdateRef.current = sendYjsUpdate;
 
-  function onMount(editor: Monaco.editor.IStandaloneCodeEditor) {
+  function onMount(editor: Monaco.editor.IStandaloneCodeEditor, monacoInstance: typeof Monaco) {
     editorRef.current = editor;
     bindMonacoToYjs();
+
+    // Route undo/redo through Yjs's UndoManager instead of Monaco's own stack,
+    // so undo stays correct against concurrent remote edits.
+    editor.addCommand(monacoInstance.KeyMod.CtrlCmd | monacoInstance.KeyCode.KeyZ, () => {
+      undoManagerRef.current?.undo();
+    });
+    editor.addCommand(monacoInstance.KeyMod.CtrlCmd | monacoInstance.KeyCode.KeyY, () => {
+      undoManagerRef.current?.redo();
+    });
+    editor.addCommand(
+      monacoInstance.KeyMod.CtrlCmd | monacoInstance.KeyMod.Shift | monacoInstance.KeyCode.KeyZ,
+      () => undoManagerRef.current?.redo(),
+    );
 
     editor.onDidChangeCursorPosition((e) => {
       const model = editor.getModel();
@@ -225,6 +245,8 @@ export default function Editor({ roomId, language, readOnly = false }: Props) {
     return () => {
       bindingRef.current?.destroy();
       bindingRef.current = null;
+      undoManagerRef.current?.destroy();
+      undoManagerRef.current = null;
       if (typingTimerRef.current) window.clearTimeout(typingTimerRef.current);
       Object.values(remoteTypingTimersRef.current).forEach((timer) => window.clearTimeout(timer));
       remoteTypingTimersRef.current = {};
