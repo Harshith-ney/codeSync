@@ -75,6 +75,7 @@
 - [x] Add stdin support and richer execution UX
 - [x] Add per-room notes doc for shared ideas
 - [x] Add demo GIF to README
+- [x] Collaborative undo/redo (Ctrl+Z/Ctrl+Y) via Yjs `UndoManager`, scoped per user — see `docs/superpowers/plans/2026-04-20-collaborative-undo-redo.md` for why the original OT-based plan was superseded
 
 ---
 
