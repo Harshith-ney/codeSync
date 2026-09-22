@@ -37,6 +37,7 @@ The most important engineering choice is the move from simple operation broadcas
 ## Features
 
 - Real-time collaborative editing with Yjs CRDT-based conflict handling
+- Collaborative undo/redo (Ctrl+Z / Ctrl+Y) scoped per user via Yjs's `UndoManager`
 - Google Docs-style labeled cursors showing who is actively typing in every connected editor
 - Monaco-powered editor with language templates
 - VS Code-style editor modes for theme, word wrap, minimap, and font size

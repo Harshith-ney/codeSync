@@ -1,5 +1,15 @@
 # Collaborative Undo/Redo Implementation Plan
 
+> **SUPERSEDED — do not implement as written.** This plan targets the operational-transform
+> architecture (`server/src/ws/operations.ts`, `client/src/lib/ot.ts`, `transform()`) that was
+> removed when the editor migrated to Yjs CRDT (see `PLAN.md`, "Remove legacy OT socket path
+> after Yjs migration"). None of those files exist anymore.
+>
+> Collaborative undo/redo was implemented instead using Yjs's built-in `Y.UndoManager`, scoped to
+> the local `MonacoBinding`'s transaction origin — see `client/src/components/Editor/Editor.tsx`.
+> This needs no server changes and no custom invert/transform logic, since Yjs computes CRDT-safe
+> inverses itself. Kept below for historical reference only.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Add Ctrl+Z / Ctrl+Y collaborative undo/redo where the server transforms the inverse op through all concurrent edits before broadcasting, so every client converges correctly.

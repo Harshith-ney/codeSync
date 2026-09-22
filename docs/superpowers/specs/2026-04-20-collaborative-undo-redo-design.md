@@ -1,5 +1,10 @@
 its# Collaborative Undo/Redo — Design Spec
 
+> **SUPERSEDED.** Written against the OT architecture (`operations.ts`, `ot.ts`, `transform()`),
+> which was removed in the Yjs CRDT migration. The shipped implementation uses `Y.UndoManager`
+> directly on the client (`client/src/components/Editor/Editor.tsx`) — no server-side op history,
+> invert, or transform logic. Kept for historical reference only.
+
 **Date:** 2026-04-20  
 **Project:** CodeSync  
 **Feature:** Server-side collaborative undo/redo via per-user op history and OT transform
