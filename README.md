@@ -13,6 +13,7 @@ The most important engineering choice is the move from simple operation broadcas
 ## Technical Highlights
 
 - Built a collaborative Monaco editor with Yjs CRDT document sync over Socket.IO.
+- Added collaborative undo/redo scoped per user with Yjs's `UndoManager`, so undo stays correct under concurrent edits with no custom transform pipeline.
 - Added Google Docs-style cursor presence with per-user colors, selections, typing labels, and Redis-backed TTL cleanup.
 - Implemented room permissions with public/invite-only access and server-enforced editor/viewer roles.
 - Added Judge0-backed code execution for multiple languages with stdin and clear execution states.
@@ -23,6 +24,7 @@ The most important engineering choice is the move from simple operation broadcas
 ## Interview Talking Points
 
 - **CRDT vs OT:** The project uses Yjs CRDT updates so clients converge without needing a fragile custom transform pipeline for concurrent edits.
+- **Undo/redo without OT:** Undo/redo uses Yjs's built-in `UndoManager`, scoped to each client's own local edits via transaction origin — no server-side op history or invert/transform logic needed, and each user's undo stack stays independent.
 - **Server authority:** Clients can render read-only mode, but the Socket.IO server also rejects edit updates from viewers.
 - **Persistence tradeoff:** Documents are kept in memory for low-latency collaboration and saved to PostgreSQL with a debounce to reduce write pressure.
 - **Scaling path:** Redis handles presence state and cross-process Yjs update fan-out for PM2 or multi-instance deployments.
@@ -31,7 +33,7 @@ The most important engineering choice is the move from simple operation broadcas
 ## Resume Bullets
 
 - Built a real-time collaborative code editor using React, Monaco, Socket.IO, Yjs, Node.js, PostgreSQL, Redis, and Judge0.
-- Implemented CRDT-based concurrent editing, Google Docs-style typing cursors, room permissions, version-history replay, and server-enforced read-only access.
+- Implemented CRDT-based concurrent editing, per-user collaborative undo/redo, Google Docs-style typing cursors, room permissions, version-history replay, and server-enforced read-only access.
 - Added production hardening with `httpOnly` cookie auth, deployment runbook, Nginx config, PM2 process management, EC2 deployment, smoke tests, and k6 load-test coverage.
 
 ## Features
@@ -156,6 +158,8 @@ Presence is separate from document content. Each editor sends cursor location, s
 
 The server still keeps an authoritative in-memory Yjs document per room so it can enforce editor/viewer permissions, emit initial sync state on room join, persist snapshots, and derive simple operation log entries for version-history replay.
 
+Undo/redo (Ctrl+Z / Ctrl+Y) is handled entirely on the client with a Yjs `UndoManager` scoped to each editor's own `MonacoBinding` transaction origin. This means each connected user has an independent undo/redo stack that only ever reverts their own edits, and undone/redone changes are ordinary Yjs updates that flow through the same sync path as any other edit — no dedicated server-side undo logic is required.
+
 ### Persistence model
 
 Room state is kept as an in-memory Yjs document for fast collaboration and persisted to PostgreSQL with a 2-second debounce. This reduces write pressure but means the last couple seconds of edits can be lost on a crash.
@@ -204,6 +208,7 @@ The current portfolio-ready baseline includes:
 - collaboration event wiring that avoids re-emitting remote edits
 - Yjs document sync verified for compound edits (e.g. typing over an auto-closed bracket), where a fix now forwards every update to other clients regardless of whether it changed the visible text
 - visual two-user typing presence verified locally, including labeled cursors in both connected editors
+- collaborative undo/redo verified locally across two clients, including independent per-user undo stacks
 - visible loading and error states for the main user flows
 - top-level React error boundary fallback
 - invite-only and read-only room flows
